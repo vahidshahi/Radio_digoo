@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radio Digoo</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        async function addStation() {
+            const stationName = document.getElementById('modal_station_name').value;
+            const stationURL = document.getElementById('modal_station_url').value;
+            const imageFile = document.getElementById('modal_station_image').files[0];
+
+            if (stationName && stationURL && imageFile) {
+                const formData = new FormData();
+                formData.append('name', stationName);
+                formData.append('url', stationURL);
+                formData.append('image', imageFile);
+
+                const response = await fetch('/add_station', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    $('#addStationModal').modal('hide');
+                    location.reload();
+                } else {
+                    alert("Failed to add station.");
+                }
+            } else {
+                alert("Please fill in all fields and select an image.");
+            }
+        }
+
+        async function selectStation(url) {
+            const response = await fetch('/select_station', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url })
+            });
+
+            if (response.ok) {
+                document.getElementById('radio_url').value = url;
+            } else {
+                alert("Failed to select station.");
+            }
+        }
+
+        function toggleDay(day) {
+            const checkbox = document.getElementById(day + '_checkbox');
+            const times = document.getElementById(day + '_times');
+            if (checkbox.checked) {
+                times.style.display = 'block';
+            } else {
+                times.style.display = 'none';
+            }
+        }
+    </script>
+    <style>
+        .station-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 5cm;
+            height: 7cm;
+            margin: 5px;
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s;
+        }
+
+        .station-button:hover {
+            transform: translateY(-5px);
+        }
+
+        .station-button img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="my-4">Radio Scheduler</h1>
+        <form method="POST" action="{{ url_for('index') }}">
+            <!-- <div class="form-group">
+                <label for="radio_url">Radio URL</label>
+                <input type="url" class="form-control" id="radio_url" name="radio_url" value="{{ radio_url }}" required>
+                <input type="hidden" id="station_id" name="station_id" value="">
+            </div> -->
+            <div id="station-container" class="station-container">
+                {% for station in stations %}
+                    <button type="button" class="station-button" onclick="selectStation('{{ station[2] }}')">
+                        <img src="{{ url_for('static', filename='uploads/' ~ station[3]) }}" alt="{{ station[1] }}" class="station-image">
+                        <br>{{ station[1] }}
+                    </button>
+                {% endfor %}
+            </div>
+            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#addStationModal">Add Station</button>
+            <h3 class="mt-4">Select Mute and Unmute Times</h3>
+            {% for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] %}
+                <div class="form-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="{{ day }}_checkbox" name="days" value="{{ day }}" onchange="toggleDay('{{ day }}')" {% if mute_times[day] or unmute_times[day] %}checked{% endif %}>
+                        <label class="form-check-label" for="{{ day }}_checkbox">{{ day.capitalize() }}</label>
+                    </div>
+                    <div id="{{ day }}_times" style="display: {% if mute_times[day] or unmute_times[day] %}block{% else %}none{% endif %};">
+                        <label>{{ day.capitalize() }} Mute Times</label>
+                        <div class="time-fields">
+                            {% for time in range(4) %}
+                                <input type="time" class="form-control" name="mute_times_{{ day }}[]" value="{{ mute_times[day][time] if time < mute_times[day]|length else '' }}">
+                            {% endfor %}
+                        </div>
+                        <label>{{ day.capitalize() }} Unmute Times</label>
+                        <div class="time-fields">
+                            {% for time in range(4) %}
+                                <input type="time" class="form-control" name="unmute_times_{{ day }}[]" value="{{ unmute_times[day][time] if time < unmute_times[day]|length else '' }}">
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+    </div>
+
+    <!-- Modal for Adding Station -->
+    <div class="modal fade" id="addStationModal" tabindex="-1" aria-labelledby="addStationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addStationModalLabel">Add Station</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="addStationForm">
+                        <div class="form-group">
+                            <label for="modal_station_name">Station Name</label>
+                            <input type="text" class="form-control" id="modal_station_name" name="modal_station_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="modal_station_url">Station URL</label>
+                            <input type="url" class="form-control" id="modal_station_url" name="modal_station_url" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="modal_station_image">Station Image</label>
+                            <input type="file" class="form-control" id="modal_station_image" name="modal_station_image" accept="image/*" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="addStation()">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
